@@ -1,53 +1,64 @@
-"""Apache Airflow DAG for ETL Pipeline - Standalone version"""
+"""
+Apache Airflow DAG for Enterprise ETL Pipeline.
+"""
+
 from datetime import datetime, timedelta
-from ..extractors import SalesforceExtractor, StripeExtractor
-from ..transformers import DataTransformer
-from ..loaders import WarehouseLoader
-from ..utils.logger import get_logger
-from ..models.schemas import DataSource, JobStatus
 
-logger = get_logger(__name__)
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+from project1_etl_pipeline.main import run_full_pipeline
 
 
-def run_etl_pipeline(database_url: str = "sqlite:///etl_database.db"):
-    logger.info("=" * 60)
-    logger.info("STARTING ETL PIPELINE")
-    logger.info("=" * 60)
+# ============================================================
+# DEFAULT 
+# ============================================================
 
-    loader = WarehouseLoader(database_url)
-    loader.create_tables()
-
-    # Extract Salesforce
-    logger.info("[1/3] EXTRACTING SALESFORCE DATA")
-    sf_extractor = SalesforceExtractor("mock_id", "mock_secret")
-    sf_extractor.authenticate()
-    sf_records = sf_extractor.extract_all(max_pages=2)
-
-    # Extract Stripe
-    logger.info("[1/3] EXTRACTING STRIPE DATA")
-    stripe_extractor = StripeExtractor("sk_test_mock")
-    stripe_extractor.authenticate()
-    stripe_records = stripe_extractor.extract_all(max_pages=2)
-
-    # Transform
-    logger.info("[2/3] TRANSFORMING DATA")
-    transformer = DataTransformer()
-    sf_result = transformer.transform_salesforce(sf_records)
-    stripe_result = transformer.transform_stripe(stripe_records)
-    all_records = sf_result.data + stripe_result.data
-
-    # Load
-    logger.info("[3/3] LOADING TO WAREHOUSE")
-    job_id = loader.create_etl_job(DataSource.SALESFORCE)
-    loaded = loader.upsert_records(all_records, job_id)
-    loader.update_job_status(job_id, JobStatus.COMPLETED, len(all_records), loaded)
-
-    stats = transformer.get_stats()
-    logger.info(f"Pipeline complete: {stats}")
-    logger.info(f"Records loaded: {loaded}")
-    logger.info("=" * 60)
-    return {"records": loaded, "stats": stats}
+default_args = {
+    "owner": "etl_team",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
 
 
-if __name__ == "__main__":
-    run_etl_pipeline()
+# ============================================================
+# ETL TASK
+# ============================================================
+
+def run_pipeline():
+    """Run the complete ETL pipeline."""
+
+    run_full_pipeline(
+        database_url="sqlite:///etl_database.db"
+    )
+
+
+# ============================================================
+# AIRFLOW DAG
+# ============================================================
+
+with DAG(
+    dag_id="enterprise_etl_pipeline",
+    default_args=default_args,
+    description="Enterprise ETL pipeline for Salesforce and Stripe",
+    schedule="0 2 * * *",
+    start_date=datetime(2026, 9, 1),
+    catchup=False,
+    max_active_runs=1,
+    tags=["etl", "salesforce", "stripe", "s3"],
+) as dag:
+
+    run_etl = PythonOperator(
+        task_id="run_etl_pipeline",
+        python_callable=run_pipeline,
+    )
+
+
+# ============================================================
+# TASK FLOW
+# ============================================================
+
+run_etl

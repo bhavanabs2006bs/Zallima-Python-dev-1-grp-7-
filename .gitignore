@@ -1,0 +1,9 @@
+.env
+project1_etl_pipeline/.env
+
+__pycache__/
+**/__pycache__/
+*.pyc
+*.db
+.pytest_cache/
+logs/

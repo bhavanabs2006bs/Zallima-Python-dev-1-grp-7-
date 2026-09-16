@@ -109,3 +109,42 @@ class WarehouseLoader:
             else:
                 result = conn.execute(text("SELECT COUNT(*) FROM unified_records"))
             return result.scalar()
+    def get_last_successful_run(
+    self,
+    source: DataSource
+    ) -> Optional[datetime]:
+        """Get the completion time of the last successful ETL job."""
+
+        with self.engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT completed_at
+                    FROM etl_jobs
+                    WHERE source = :source
+                    AND status = 'completed'
+                    AND completed_at IS NOT NULL
+                    ORDER BY completed_at DESC
+                    LIMIT 1
+            """),
+            {"source": source.value}
+        )
+
+        row = result.fetchone()
+
+        if not row:
+            return None
+
+        completed_at = row[0]
+
+        if isinstance(completed_at, datetime):
+            return completed_at
+
+        if isinstance(completed_at, str):
+            try:
+                return datetime.fromisoformat(
+                    completed_at
+                )
+            except ValueError:
+                return None
+
+        return None
