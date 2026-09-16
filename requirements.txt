@@ -1,0 +1,11 @@
+requests
+tenacity
+pydantic
+python-dotenv
+pandas
+polars
+sqlalchemy
+psycopg2-binary
+pytest
+boto3
+apache-airflow
