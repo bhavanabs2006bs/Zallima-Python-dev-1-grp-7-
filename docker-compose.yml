@@ -1,0 +1,28 @@
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: zaalima-postgres
+    environment:
+      POSTGRES_DB: zaalims_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zaalima-etl
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/zaalims_db
+    command: pytest -q
+
+volumes:
+  postgres_data:
+
